@@ -30,6 +30,8 @@ contract JankaProtocol is Ownable {
         if (msg.value < REQUIRED_ATTESTATION_STAKE)
             revert InsufficientStake(REQUIRED_ATTESTATION_STAKE, msg.value);
 
+        // TODO: Decide how to handle an existing attestation in-flight.
+
         uint256 finalizationTime = block.timestamp + CHALLENGE_WINDOW;
         attestations[msg.sender] = Attestation({
             score: _score,
