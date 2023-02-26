@@ -1,13 +1,42 @@
-# Sample Hardhat Project
+# Janka Protocol
 
-This project demonstrates a basic Hardhat use case. It comes with a sample contract, a test for that contract, and a script that deploys that contract.
+### Installation
 
-Try running some of the following tasks:
+```sh
+yarn install
+```
 
-```shell
-npx hardhat help
-npx hardhat test
-REPORT_GAS=true npx hardhat test
-npx hardhat node
-npx hardhat run scripts/deploy.ts
+### Development
+
+To run the test suite and watch for (re-run on) changes:
+
+```sh
+yarn test
+```
+
+To additionally show code test coverage:
+
+```sh
+yarn coverage
+```
+
+To show gas usage estimation:
+
+```sh
+REPORT_GAS=true yarn test
+```
+
+### Deployment
+
+Copy the `.env.sample` file in the project's root and supply the pertinent environment variables:
+
+```sh
+cp .env.sample .env
+# Edit .env and fill in the pertinent environment variables.
+```
+
+Then, run the deploy script:
+
+```sh
+npx hardhat run --network goerli scripts/deploy.ts
 ```
