@@ -16,4 +16,9 @@ describe("JankaProtocol", () => {
     const { janka } = await loadFixture(setupFixture);
     expect(janka.address).to.be.properAddress;
   });
+
+  it("should make the deployer the initial owner", async () => {
+    const { janka, deployer } = await loadFixture(setupFixture);
+    expect(await janka.owner()).to.equal(deployer.address);
+  });
 });
