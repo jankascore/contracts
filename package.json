@@ -6,6 +6,12 @@
     "McKittrick Kaminski <mckittrick.kaminski@gmail.com>"
   ],
   "license": "MIT",
+  "scripts": {
+    "test": "nodemon -x npx hardhat test --parallel -w contracts -w test -e js,ts,sol",
+    "coverage": "nodemon -x npx hardhat coverage -w contracts -w test -e js,ts,sol",
+    "prettier": "prettier '**/*.{json,sol,ts,js,md}' --write",
+    "lint": "eslint test/*"
+  },
   "devDependencies": {
     "@ethersproject/abi": "^5.7.0",
     "@ethersproject/bytes": "^5.7.0",
