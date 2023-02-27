@@ -18,6 +18,10 @@ contract JankaProtocol is Ownable {
 
     mapping (address => Attestation) public attestations;
 
+    /// An allowlist of known scoring algorithms (by IPFS CID string).
+    /// @dev Using a mapping (vs array) for quick lookup by CID.
+    mapping (string => bool) public supportedAlgorithms;
+
     /// Allows an EOA to attest to a score, subject to challenges for `CHALLENGE_WINDOW`.
     /// @param _score An integer score ranging from 0-100 inclusive.
     /// @param _algorithmCID An IPFS CID indicating the algorithm used.
@@ -28,6 +32,9 @@ contract JankaProtocol is Ownable {
     ) external payable returns (uint256 _finalizationTime) {
         /// Revert straight away if we know the score is bogus.
         if (_score > 100) revert InvalidScore(0, 100, _score);
+
+        /// Ensure the provided IPFS CID is a known, allowlisted algorithm.
+        if (!supportedAlgorithms[_algorithmCID]) revert InvalidAlgorithm();
 
         /// Verify that the caller has provided sufficient at-risk Ether.
         if (msg.value < REQUIRED_ATTESTATION_STAKE)
@@ -46,6 +53,13 @@ contract JankaProtocol is Ownable {
         return finalizationTime;
     }
 
+    /// Allows an administrator to add an IPFS CID to the allowlist for scoring.
+    function allowAlgorithmCID(
+        string calldata _algorithmCID
+    ) external onlyOwner {
+        supportedAlgorithms[_algorithmCID] = true;
+    }
+
     event ScoreAttested(
         address indexed attester,
         uint8 score,
@@ -54,6 +68,7 @@ contract JankaProtocol is Ownable {
     );
 
     error InsufficientStake(uint256 amountExpected, uint256 amountProvided);
+    error InvalidAlgorithm();
     error InvalidScore(uint8 min, uint8 max, uint8 provided);
 }
 
