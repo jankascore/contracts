@@ -1,7 +1,7 @@
 import { expect } from "chai";
 import { ethers } from "hardhat";
 import { anyValue } from "@nomicfoundation/hardhat-chai-matchers/withArgs";
-import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
+import { loadFixture, time } from "@nomicfoundation/hardhat-network-helpers";
 
 const MOCK_CID = "bafkreidgvpkjawlxz6sffxzwgooowe5yt7i6wsyg236mfoks77nywkptdq";
 
@@ -91,6 +91,77 @@ describe("JankaProtocol", () => {
       )
         .to.emit(janka, "ScoreAttested")
         .withArgs(alice.address, score, MOCK_CID, anyValue);
+    });
+  });
+
+  describe("when an EOA attempts to withdraw their staked collateral", () => {
+    it("should validate that the caller has an existing attestation", async () => {
+      const { janka, alice } = await loadFixture(setupFixture);
+
+      // No attestation has been made yet.
+      await expect(
+        janka.connect(alice).withdrawStake()
+      ).to.be.revertedWithCustomError(janka, "InvalidWithdraw");
+    });
+
+    it("should validate that the caller hasn't already withdrawn previously", async () => {
+      const { janka, alice } = await loadFixture(setupFixture);
+      const requiredStake = await janka.REQUIRED_ATTESTATION_STAKE();
+      await janka.connect(alice).attest(50, MOCK_CID, { value: requiredStake });
+
+      const attestation = await janka.attestations(alice.address);
+      await time.increaseTo(attestation.finalizationTime);
+
+      // First withdraw.
+      await janka.connect(alice).withdrawStake();
+
+      // Second, erroneous withdraw.
+      await expect(
+        janka.connect(alice).withdrawStake()
+      ).to.be.revertedWithCustomError(janka, "InvalidWithdraw");
+    });
+
+    it("should ensure that the challenge window has closed", async () => {
+      const { janka, alice } = await loadFixture(setupFixture);
+      const requiredStake = await janka.REQUIRED_ATTESTATION_STAKE();
+      await janka.connect(alice).attest(50, MOCK_CID, { value: requiredStake });
+
+      // An attestation has been made, but no time has passed.
+      await expect(
+        janka.connect(alice).withdrawStake()
+      ).to.be.revertedWithCustomError(janka, "WithdrawNotReady");
+    });
+
+    it("should refund the exact attestation stake given a valid withdraw", async () => {
+      const { janka, alice } = await loadFixture(setupFixture);
+      const requiredStake = await janka.REQUIRED_ATTESTATION_STAKE();
+      await janka.connect(alice).attest(50, MOCK_CID, { value: requiredStake });
+
+      const attestation = await janka.attestations(alice.address);
+      // Simulate the passage of time.
+      await time.increaseTo(attestation.finalizationTime);
+
+      // Verify that the contract returns the exact amount.
+      await expect(janka.connect(alice).withdrawStake()).to.changeEtherBalances(
+        [janka.address, alice.address],
+        [requiredStake.mul(-1), requiredStake]
+      );
+
+      expect((await janka.attestations(alice.address)).isStakeClaimed).to.be
+        .true;
+    });
+
+    it("should emit a StakeWithdrawn event", async () => {
+      const { janka, alice } = await loadFixture(setupFixture);
+      const requiredStake = await janka.REQUIRED_ATTESTATION_STAKE();
+      await janka.connect(alice).attest(50, MOCK_CID, { value: requiredStake });
+
+      const attestation = await janka.attestations(alice.address);
+      await time.increaseTo(attestation.finalizationTime);
+
+      await expect(janka.connect(alice).withdrawStake())
+        .to.emit(janka, "StakeWithdrawn")
+        .withArgs(alice.address, requiredStake);
     });
   });
 
