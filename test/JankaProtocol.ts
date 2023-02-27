@@ -3,6 +3,8 @@ import { ethers } from "hardhat";
 import { anyValue } from "@nomicfoundation/hardhat-chai-matchers/withArgs";
 import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
 
+const MOCK_CID = "bafkreidgvpkjawlxz6sffxzwgooowe5yt7i6wsyg236mfoks77nywkptdq";
+
 describe("JankaProtocol", () => {
   async function setupFixture() {
     const [deployer, alice] = await ethers.getSigners();
@@ -28,7 +30,7 @@ describe("JankaProtocol", () => {
       const { janka, alice } = await loadFixture(setupFixture);
       const bogusScore = 101;
 
-      await expect(janka.connect(alice).attest(bogusScore))
+      await expect(janka.connect(alice).attest(bogusScore, MOCK_CID))
         .to.be.revertedWithCustomError(janka, "InvalidScore")
         .withArgs(0, 100, bogusScore);
     });
@@ -38,13 +40,14 @@ describe("JankaProtocol", () => {
       const requiredStake = await janka.REQUIRED_ATTESTATION_STAKE();
 
       // Try first without providing any ether.
-      await expect(janka.connect(alice).attest(0))
+      await expect(janka.connect(alice).attest(0, MOCK_CID))
         .to.be.revertedWithCustomError(janka, "InsufficientStake")
         .withArgs(requiredStake, 0);
 
       // Try again with a sufficient amount.
-      await expect(janka.connect(alice).attest(0, { value: requiredStake })).to
-        .not.be.reverted;
+      await expect(
+        janka.connect(alice).attest(0, MOCK_CID, { value: requiredStake })
+      ).to.not.be.reverted;
     });
 
     it("should emit a ScoreAttested event", async () => {
@@ -52,9 +55,11 @@ describe("JankaProtocol", () => {
       const score = 50;
       const requiredStake = await janka.REQUIRED_ATTESTATION_STAKE();
 
-      await expect(janka.connect(alice).attest(score, { value: requiredStake }))
+      await expect(
+        janka.connect(alice).attest(score, MOCK_CID, { value: requiredStake })
+      )
         .to.emit(janka, "ScoreAttested")
-        .withArgs(alice.address, score, anyValue);
+        .withArgs(alice.address, score, MOCK_CID, anyValue);
     });
   });
 });
