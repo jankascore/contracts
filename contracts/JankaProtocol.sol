@@ -37,11 +37,15 @@ contract JankaProtocol is Ownable {
         /// Ensure the provided IPFS CID is a known, allowlisted algorithm.
         if (!supportedAlgorithms[_algorithmCID]) revert InvalidAlgorithm();
 
-        /// Verify that the caller has provided sufficient at-risk Ether.
-        if (msg.value < REQUIRED_ATTESTATION_STAKE)
-            revert InsufficientStake(REQUIRED_ATTESTATION_STAKE, msg.value);
+        /// Don't allow the caller to start another attestation until the first is finished.
+        /// @dev This was chosen for simplicity, future protocol upgrades may handle this.
+        if (attestations[msg.sender].finalizationTime > 0)
+            revert AttestationAlreadyExists();
 
-        // TODO: Decide how to handle an existing attestation in-flight.
+        /// Verify that the caller has provided sufficient at-risk Ether.
+        /// @dev Rather than deal with refunds (excess), we've opted to require an exact amount.
+        if (msg.value != REQUIRED_ATTESTATION_STAKE)
+            revert IncorrectStakeAmount(REQUIRED_ATTESTATION_STAKE, msg.value);
 
         uint256 finalizationTime = block.timestamp + CHALLENGE_WINDOW;
         attestations[msg.sender] = Attestation({
@@ -94,7 +98,8 @@ contract JankaProtocol is Ownable {
 
     event StakeWithdrawn(address indexed attester, uint256 amount);
 
-    error InsufficientStake(uint256 amountExpected, uint256 amountProvided);
+    error AttestationAlreadyExists();
+    error IncorrectStakeAmount(uint256 amountExpected, uint256 amountProvided);
     error InvalidAlgorithm();
     error InvalidScore(uint8 min, uint8 max, uint8 provided);
     error InvalidWithdraw();

@@ -53,7 +53,7 @@ describe("JankaProtocol", () => {
 
       // Try first without providing any ether.
       await expect(janka.connect(alice).attest(0, MOCK_CID))
-        .to.be.revertedWithCustomError(janka, "InsufficientStake")
+        .to.be.revertedWithCustomError(janka, "IncorrectStakeAmount")
         .withArgs(requiredStake, 0);
 
       // Try again with a sufficient amount.
