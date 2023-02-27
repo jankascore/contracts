@@ -12,6 +12,7 @@ contract JankaProtocol is Ownable {
 
     struct Attestation {
         uint8 score;
+        bool isStakeClaimed;
         string algorithmCID;
         uint256 finalizationTime;
     }
@@ -45,12 +46,35 @@ contract JankaProtocol is Ownable {
         uint256 finalizationTime = block.timestamp + CHALLENGE_WINDOW;
         attestations[msg.sender] = Attestation({
             score: _score,
+            isStakeClaimed: false,
             algorithmCID: _algorithmCID,
             finalizationTime: finalizationTime
         });
 
         emit ScoreAttested(msg.sender, _score, _algorithmCID, finalizationTime);
         return finalizationTime;
+    }
+
+    /// Allows an EOA to reclaim staked Ether after `CHALLENGE_WINDOW` has passed.
+    function withdrawStake() external {
+        Attestation storage attestation = attestations[msg.sender];
+
+        /// Ensure the caller has an existing attestation.
+        /// @dev Using `finalizationTime` as a sentinel value.
+        if (attestation.finalizationTime == 0) revert InvalidWithdraw();
+
+        /// Verify that this EOA hasn't already withdrawn.
+        if (attestation.isStakeClaimed) revert InvalidWithdraw();
+
+        /// Ensure the `CHALLENGE_WINDOW` has passed.
+        if (block.timestamp < attestation.finalizationTime)
+            revert WithdrawNotReady(attestation.finalizationTime - block.timestamp);
+
+        attestation.isStakeClaimed = true;
+        emit StakeWithdrawn(msg.sender, REQUIRED_ATTESTATION_STAKE);
+
+        (bool isSuccess,) = payable(msg.sender).call{value: REQUIRED_ATTESTATION_STAKE}("");
+        require(isSuccess, "Transmitting funds failed!");
     }
 
     /// Allows an administrator to add an IPFS CID to the allowlist for scoring.
@@ -68,8 +92,12 @@ contract JankaProtocol is Ownable {
         uint256 finalizationTime
     );
 
+    event StakeWithdrawn(address indexed attester, uint256 amount);
+
     error InsufficientStake(uint256 amountExpected, uint256 amountProvided);
     error InvalidAlgorithm();
     error InvalidScore(uint8 min, uint8 max, uint8 provided);
+    error InvalidWithdraw();
+    error WithdrawNotReady(uint256 timeRemaining);
 }
 
