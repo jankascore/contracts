@@ -11,6 +11,9 @@ describe("JankaProtocol", () => {
 
     const JankaProtocol = await ethers.getContractFactory("JankaProtocol");
     const janka = await JankaProtocol.deploy();
+    await janka.deployed();
+
+    await janka.allowAlgorithmCID(MOCK_CID);
 
     return { janka, deployer, alice };
   }
@@ -33,6 +36,15 @@ describe("JankaProtocol", () => {
       await expect(janka.connect(alice).attest(bogusScore, MOCK_CID))
         .to.be.revertedWithCustomError(janka, "InvalidScore")
         .withArgs(0, 100, bogusScore);
+    });
+
+    it("should reject an algorithm that hasn't been allowlisted", async () => {
+      const { janka, alice } = await loadFixture(setupFixture);
+      const bogusCID = "QmbWqxBEKC3P8tqsKc98xmWNzrzDtRLMiMPL8wBuTGsMnR";
+
+      await expect(
+        janka.connect(alice).attest(50, bogusCID)
+      ).to.be.revertedWithCustomError(janka, "InvalidAlgorithm");
     });
 
     it("should require the appropriate stake is provided", async () => {
@@ -60,6 +72,16 @@ describe("JankaProtocol", () => {
       )
         .to.emit(janka, "ScoreAttested")
         .withArgs(alice.address, score, MOCK_CID, anyValue);
+    });
+  });
+
+  describe("when calling allowAlgorithmCID()", () => {
+    it("should only allow the contract owner", async () => {
+      const { janka, alice } = await loadFixture(setupFixture);
+
+      await expect(
+        janka.connect(alice).allowAlgorithmCID(MOCK_CID)
+      ).to.be.revertedWith("Ownable: caller is not the owner");
     });
   });
 });

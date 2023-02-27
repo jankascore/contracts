@@ -54,6 +54,7 @@ contract JankaProtocol is Ownable {
     }
 
     /// Allows an administrator to add an IPFS CID to the allowlist for scoring.
+    /// @param _algorithmCID An IPFS CID of a scoring algorithm permitted to be used.
     function allowAlgorithmCID(
         string calldata _algorithmCID
     ) external onlyOwner {
