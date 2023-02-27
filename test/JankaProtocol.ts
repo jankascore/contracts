@@ -13,7 +13,7 @@ describe("JankaProtocol", () => {
     const janka = await JankaProtocol.deploy();
     await janka.deployed();
 
-    await janka.allowAlgorithmCID(MOCK_CID);
+    await janka.connect(deployer).allowAlgorithmCID(MOCK_CID);
 
     return { janka, deployer, alice };
   }
@@ -47,7 +47,17 @@ describe("JankaProtocol", () => {
       ).to.be.revertedWithCustomError(janka, "InvalidAlgorithm");
     });
 
-    it("should require the appropriate stake is provided", async () => {
+    it("should reject an additional attestation if one is in-flight from the same EOA", async () => {
+      const { janka, alice } = await loadFixture(setupFixture);
+      const requiredStake = await janka.REQUIRED_ATTESTATION_STAKE();
+
+      await janka.connect(alice).attest(50, MOCK_CID, { value: requiredStake });
+      await expect(
+        janka.connect(alice).attest(50, MOCK_CID, { value: requiredStake })
+      ).to.be.revertedWithCustomError(janka, "AttestationAlreadyExists");
+    });
+
+    it("should enforce that the *exact* required stake is provided", async () => {
       const { janka, alice } = await loadFixture(setupFixture);
       const requiredStake = await janka.REQUIRED_ATTESTATION_STAKE();
 
@@ -56,7 +66,16 @@ describe("JankaProtocol", () => {
         .to.be.revertedWithCustomError(janka, "IncorrectStakeAmount")
         .withArgs(requiredStake, 0);
 
-      // Try again with a sufficient amount.
+      // Next, try with too much ether.
+      await expect(
+        janka
+          .connect(alice)
+          .attest(0, MOCK_CID, { value: requiredStake.add(1) })
+      )
+        .to.be.revertedWithCustomError(janka, "IncorrectStakeAmount")
+        .withArgs(requiredStake, requiredStake.add(1));
+
+      // Finally, try with the exact amount.
       await expect(
         janka.connect(alice).attest(0, MOCK_CID, { value: requiredStake })
       ).to.not.be.reverted;
@@ -76,7 +95,14 @@ describe("JankaProtocol", () => {
   });
 
   describe("when calling allowAlgorithmCID()", () => {
-    it("should only allow the contract owner", async () => {
+    it("should add the algorithm CID to the list of CIDs", async () => {
+      const { janka, deployer } = await loadFixture(setupFixture);
+
+      await janka.connect(deployer).allowAlgorithmCID(MOCK_CID);
+      expect(await janka.supportedAlgorithms(MOCK_CID)).to.be.true;
+    });
+
+    it("should only allow the contract owner to call it", async () => {
       const { janka, alice } = await loadFixture(setupFixture);
 
       await expect(
