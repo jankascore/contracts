@@ -7,7 +7,7 @@ const MOCK_CID = "bafkreidgvpkjawlxz6sffxzwgooowe5yt7i6wsyg236mfoks77nywkptdq";
 
 describe("JankaProtocol", () => {
   async function setupFixture() {
-    const [deployer, alice] = await ethers.getSigners();
+    const [deployer, alice, bob] = await ethers.getSigners();
 
     const JankaProtocol = await ethers.getContractFactory("JankaProtocol");
     const janka = await JankaProtocol.deploy();
@@ -15,7 +15,7 @@ describe("JankaProtocol", () => {
 
     await janka.connect(deployer).allowAlgorithmCID(MOCK_CID);
 
-    return { janka, deployer, alice };
+    return { janka, deployer, alice, bob };
   }
 
   it("should successfully deploy", async () => {
@@ -91,6 +91,91 @@ describe("JankaProtocol", () => {
       )
         .to.emit(janka, "ScoreAttested")
         .withArgs(alice.address, score, MOCK_CID, anyValue);
+    });
+  });
+
+  describe("when an attested score is challenged", () => {
+    it("should ensure that the attestation is valid", async () => {
+      const { janka, alice, bob } = await loadFixture(setupFixture);
+
+      // No such attestation exists.
+      await expect(
+        janka.connect(bob).challenge(alice.address, 50, MOCK_CID, bob.address)
+      ).to.be.revertedWithCustomError(janka, "InvalidAttestationChallenge");
+    });
+
+    it("should ensure that the attestation was checked using the same scoring algorithm", async () => {
+      const { janka, alice, bob } = await loadFixture(setupFixture);
+      const requiredStake = await janka.REQUIRED_ATTESTATION_STAKE();
+      const differentCID = "QmbWqxBEKC3P8tqsKc98xmWNzrzDtRLMiMPL8wBuTGsMnR";
+
+      await janka
+        .connect(alice)
+        .attest(100, MOCK_CID, { value: requiredStake });
+
+      // Challenge is made having used a different scoring algorithm.
+      await expect(
+        janka
+          .connect(bob)
+          .challenge(alice.address, 50, differentCID, bob.address)
+      ).to.be.revertedWithCustomError(janka, "InvalidAttestationChallenge");
+    });
+
+    it("should ensure that the correct score differs from the original attestation", async () => {
+      const { janka, alice, bob } = await loadFixture(setupFixture);
+      const requiredStake = await janka.REQUIRED_ATTESTATION_STAKE();
+
+      await janka.connect(alice).attest(50, MOCK_CID, { value: requiredStake });
+
+      // Challenge is made, but invalid (same score).
+      await expect(
+        janka.connect(bob).challenge(alice.address, 50, MOCK_CID, bob.address)
+      ).to.be.revertedWithCustomError(janka, "InvalidAttestationChallenge");
+    });
+
+    it("should invalidate the original attestation", async () => {
+      const { janka, alice, bob } = await loadFixture(setupFixture);
+      const requiredStake = await janka.REQUIRED_ATTESTATION_STAKE();
+      await janka
+        .connect(alice)
+        .attest(100, MOCK_CID, { value: requiredStake });
+
+      await janka
+        .connect(bob)
+        .challenge(alice.address, 69, MOCK_CID, bob.address);
+      const attestation = await janka.attestations(alice.address);
+
+      // Verify that the original attestation entry has been removed.
+      expect(attestation.finalizationTime).to.equal(0);
+    });
+
+    it("should emit a ScoreChallenged event", async () => {
+      const { janka, alice, bob } = await loadFixture(setupFixture);
+      const requiredStake = await janka.REQUIRED_ATTESTATION_STAKE();
+      await janka
+        .connect(alice)
+        .attest(100, MOCK_CID, { value: requiredStake });
+
+      await expect(
+        janka.connect(bob).challenge(alice.address, 69, MOCK_CID, bob.address)
+      )
+        .to.emit(janka, "ScoreChallenged")
+        .withArgs(alice.address, bob.address, 100, 69, MOCK_CID);
+    });
+
+    it("should give the attester's stake to the challenger", async () => {
+      const { janka, alice, bob } = await loadFixture(setupFixture);
+      const requiredStake = await janka.REQUIRED_ATTESTATION_STAKE();
+      await janka
+        .connect(alice)
+        .attest(100, MOCK_CID, { value: requiredStake });
+
+      await expect(
+        janka.connect(bob).challenge(alice.address, 69, MOCK_CID, bob.address)
+      ).to.changeEtherBalances(
+        [janka.address, bob.address],
+        [requiredStake.mul(-1), requiredStake]
+      );
     });
   });
 

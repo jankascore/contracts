@@ -59,28 +59,6 @@ contract JankaProtocol is Ownable {
         return finalizationTime;
     }
 
-    /// Allows an EOA to reclaim staked Ether after `CHALLENGE_WINDOW` has passed.
-    function withdrawStake() external {
-        Attestation storage attestation = attestations[msg.sender];
-
-        /// Ensure the caller has an existing attestation.
-        /// @dev Using `finalizationTime` as a sentinel value.
-        if (attestation.finalizationTime == 0) revert InvalidWithdraw();
-
-        /// Verify that this EOA hasn't already withdrawn.
-        if (attestation.isStakeClaimed) revert InvalidWithdraw();
-
-        /// Ensure the `CHALLENGE_WINDOW` has passed.
-        if (block.timestamp < attestation.finalizationTime)
-            revert WithdrawNotReady(attestation.finalizationTime - block.timestamp);
-
-        attestation.isStakeClaimed = true;
-        emit StakeWithdrawn(msg.sender, REQUIRED_ATTESTATION_STAKE);
-
-        (bool isSuccess,) = payable(msg.sender).call{value: REQUIRED_ATTESTATION_STAKE}("");
-        require(isSuccess, "Transmitting funds failed!");
-    }
-
     /// Allows an attestation to be challenged by a trusted verifier.
     /// @param _attester The EOA that submitted the original score attestation.
     /// @param _score The score that the challenger computed.
@@ -123,6 +101,28 @@ contract JankaProtocol is Ownable {
         /// Pay the challenger an incentive for combatting fraud!
         (bool isSuccess,) = payable(_rewardRecipient).call{value: REQUIRED_ATTESTATION_STAKE}("");
         require(isSuccess, "Incentive payment failed!");
+    }
+
+    /// Allows an EOA to reclaim staked Ether after `CHALLENGE_WINDOW` has passed.
+    function withdrawStake() external {
+        Attestation storage attestation = attestations[msg.sender];
+
+        /// Ensure the caller has an existing attestation.
+        /// @dev Using `finalizationTime` as a sentinel value.
+        if (attestation.finalizationTime == 0) revert InvalidWithdraw();
+
+        /// Verify that this EOA hasn't already withdrawn.
+        if (attestation.isStakeClaimed) revert InvalidWithdraw();
+
+        /// Ensure the `CHALLENGE_WINDOW` has passed.
+        if (block.timestamp < attestation.finalizationTime)
+            revert WithdrawNotReady(attestation.finalizationTime - block.timestamp);
+
+        attestation.isStakeClaimed = true;
+        emit StakeWithdrawn(msg.sender, REQUIRED_ATTESTATION_STAKE);
+
+        (bool isSuccess,) = payable(msg.sender).call{value: REQUIRED_ATTESTATION_STAKE}("");
+        require(isSuccess, "Transmitting funds failed!");
     }
 
     /// Allows an administrator to add an IPFS CID to the allowlist for scoring.
