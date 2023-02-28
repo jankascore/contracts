@@ -20,8 +20,12 @@ contract JankaProtocol is Ownable {
     mapping (address => Attestation) public attestations;
 
     /// An allowlist of known scoring algorithms (by IPFS CID string).
-    /// @dev Using a mapping (vs array) for quick lookup by CID.
+    /// @dev Using a mapping (vs array) for O(1) lookup by CID.
     mapping (string => bool) public supportedAlgorithms;
+
+    /// An allowlist of verifiers which can be trusted to challenge bogus attestations.
+    /// @dev Using a mapping (vs array) for O(1) lookup.
+    mapping (address => bool) public allowlistedVerifiers;
 
     /// Allows an EOA to attest to a score, subject to challenges for `CHALLENGE_WINDOW`.
     /// @param _score An integer score ranging from 0-100 inclusive.
@@ -70,7 +74,8 @@ contract JankaProtocol is Ownable {
         string calldata _algorithmCID,
         address _rewardRecipient
     ) external {
-        // TODO: Allowlist msg.sender.
+        /// Only trusted verifiers can challenge attestations.
+        if (!allowlistedVerifiers[msg.sender]) revert PermissionDenied();
 
         Attestation memory attestation = attestations[_attester];
 
@@ -148,6 +153,7 @@ contract JankaProtocol is Ownable {
 
     error AttestationAlreadyExists();
     error IncorrectStakeAmount(uint256 amountExpected, uint256 amountProvided);
+    error PermissionDenied();
     error InvalidAlgorithm();
     error InvalidAttestationChallenge();
     error InvalidScore(uint8 min, uint8 max, uint8 provided);
