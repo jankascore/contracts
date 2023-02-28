@@ -81,18 +81,75 @@ contract JankaProtocol is Ownable {
         require(isSuccess, "Transmitting funds failed!");
     }
 
+    /// Allows an attestation to be challenged by a trusted verifier.
+    /// @param _attester The EOA that submitted the original score attestation.
+    /// @param _score The score that the challenger computed.
+    /// @param _algorithmCID The scoring algorithm (IPFS CID) used for the new score.
+    /// @param _rewardRecipient An address to receive the challenge incentive.
+    function challenge(
+        address _attester,
+        uint8 _score,
+        string calldata _algorithmCID,
+        address _rewardRecipient
+    ) external {
+        // TODO: Allowlist msg.sender.
+
+        Attestation memory attestation = attestations[_attester];
+
+        /// Verify that the attestation exists.
+        /// @dev Using `finalizationTime` as a sentinel value.
+        if (attestation.finalizationTime == 0)
+            revert InvalidAttestationChallenge();
+
+        /// Ensure that the scoring used the same algorithm as the attestation.
+        if (keccak256(abi.encodePacked(attestation.algorithmCID))
+            != keccak256(abi.encodePacked(_algorithmCID))) {
+                revert InvalidAttestationChallenge();
+        }
+
+        /// Ensure that the challenger actually came up with a different score.
+        if (attestation.score == _score) revert InvalidAttestationChallenge();
+
+        /// If we've reached this point, render the attestation invalid.
+        delete attestations[_attester];
+        emit ScoreChallenged(
+            _attester,
+            msg.sender,
+            attestation.score,
+            _score,
+            _algorithmCID
+        );
+
+        /// Pay the challenger an incentive for combatting fraud!
+        (bool isSuccess,) = payable(_rewardRecipient).call{value: REQUIRED_ATTESTATION_STAKE}("");
+        require(isSuccess, "Incentive payment failed!");
+    }
+
     /// Allows an administrator to add an IPFS CID to the allowlist for scoring.
     /// @param _algorithmCID An IPFS CID of a scoring algorithm permitted to be used.
     function allowAlgorithmCID(string calldata _algorithmCID) external onlyOwner {
         supportedAlgorithms[_algorithmCID] = true;
     }
 
-    event ScoreAttested(address indexed attester, uint8 score, string algorithmCID, uint256 finalizationTime);
+    event ScoreAttested(
+        address indexed attester,
+        uint8 score,
+        string algorithmCID,
+        uint256 finalizationTime
+    );
+    event ScoreChallenged(
+        address indexed attester,
+        address indexed challenger,
+        uint8 scoreClaimed,
+        uint8 scoreActual,
+        string algorithmCID
+    );
     event StakeWithdrawn(address indexed attester, uint256 amount);
 
     error AttestationAlreadyExists();
     error IncorrectStakeAmount(uint256 amountExpected, uint256 amountProvided);
     error InvalidAlgorithm();
+    error InvalidAttestationChallenge();
     error InvalidScore(uint8 min, uint8 max, uint8 provided);
     error InvalidWithdraw();
     error WithdrawNotReady(uint256 timeRemaining);
