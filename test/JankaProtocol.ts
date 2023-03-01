@@ -61,7 +61,7 @@ describe("JankaProtocol", () => {
         janka
           .connect(alice)
           .attest(50, MOCK_CID, Date.now(), { value: requiredStake })
-      ).to.be.revertedWithCustomError(janka, "AttestationAlreadyExists");
+      ).to.be.revertedWithCustomError(janka, "AttestationOustanding");
     });
 
     it("should enforce that the *exact* required stake is provided", async () => {

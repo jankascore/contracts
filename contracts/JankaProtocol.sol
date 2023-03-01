@@ -45,8 +45,9 @@ contract JankaProtocol is Ownable {
 
         /// Don't allow the caller to start another attestation until the first is finished.
         /// @dev This was chosen for simplicity, future protocol upgrades may handle this.
-        if (attestations[msg.sender].finalizationTime > 0)
-            revert AttestationAlreadyExists();
+        Attestation memory attestation = attestations[msg.sender];
+        if (attestation.finalizationTime > 0 && !attestation.isStakeClaimed)
+            revert AttestationOustanding();
 
         /// Verify that the caller has provided sufficient at-risk Ether.
         /// @dev Rather than deal with refunds (excess), we've opted to require an exact amount.
@@ -85,6 +86,9 @@ contract JankaProtocol is Ownable {
         /// @dev Using `finalizationTime` as a sentinel value.
         if (attestation.finalizationTime == 0)
             revert InvalidAttestationChallenge();
+
+        /// If the attester has already withdrawn their stake, it can no longer be challenged.
+        if (attestation.isStakeClaimed) revert ChallengeDenied();
 
         /// Ensure that the scoring used the same algorithm as the attestation.
         if (keccak256(abi.encodePacked(attestation.algorithmCID))
@@ -159,13 +163,14 @@ contract JankaProtocol is Ownable {
     );
     event StakeWithdrawn(address indexed attester, uint256 amount);
 
-    error AttestationAlreadyExists();
+    error AttestationOustanding();
+    error ChallengeDenied();
     error IncorrectStakeAmount(uint256 amountExpected, uint256 amountProvided);
-    error PermissionDenied();
     error InvalidAlgorithm();
     error InvalidAttestationChallenge();
     error InvalidScore(uint8 min, uint8 max, uint8 provided);
     error InvalidWithdraw();
+    error PermissionDenied();
     error WithdrawNotReady(uint256 timeRemaining);
 }
 
