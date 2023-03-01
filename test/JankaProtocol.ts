@@ -295,4 +295,21 @@ describe("JankaProtocol", () => {
       ).to.be.revertedWith("Ownable: caller is not the owner");
     });
   });
+
+  describe("when calling allowVerifier()", () => {
+    it("should add the verifier to the allowlist", async () => {
+      const { janka, deployer, verifier } = await loadFixture(setupFixture);
+
+      await janka.connect(deployer).allowVerifier(verifier.address);
+      expect(await janka.allowlistedVerifiers(verifier.address)).to.be.true;
+    });
+
+    it("should only allow the contract owner to call it", async () => {
+      const { janka, verifier, alice } = await loadFixture(setupFixture);
+
+      await expect(
+        janka.connect(alice).allowVerifier(verifier.address)
+      ).to.be.revertedWith("Ownable: caller is not the owner");
+    });
+  });
 });
