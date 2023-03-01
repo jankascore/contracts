@@ -117,6 +117,24 @@ describe("JankaProtocol", () => {
       ).to.be.revertedWithCustomError(janka, "InvalidAttestationChallenge");
     });
 
+    it("should not allow an attestation whose stake has been withdrawn to be challenged", async () => {
+      const { janka, alice, verifier } = await loadFixture(setupFixture);
+      const requiredStake = await janka.REQUIRED_ATTESTATION_STAKE();
+      await janka
+        .connect(alice)
+        .attest(100, MOCK_CID, Date.now(), { value: requiredStake });
+
+      const attestation = await janka.attestations(alice.address);
+      await time.increaseTo(attestation.finalizationTime);
+      await janka.connect(alice).withdrawStake();
+
+      await expect(
+        janka
+          .connect(verifier)
+          .challenge(alice.address, 69, MOCK_CID, verifier.address)
+      ).to.be.revertedWithCustomError(janka, "ChallengeDenied");
+    });
+
     it("should ensure that the attestation was checked using the same scoring algorithm", async () => {
       const { janka, alice, verifier } = await loadFixture(setupFixture);
       const requiredStake = await janka.REQUIRED_ATTESTATION_STAKE();
