@@ -64,6 +64,25 @@ describe("JankaProtocol", () => {
       ).to.be.revertedWithCustomError(janka, "AttestationOustanding");
     });
 
+    it("should allow an additional attestation if no unclaimed stake is outstanding", async () => {
+      const { janka, alice } = await loadFixture(setupFixture);
+      const requiredStake = await janka.REQUIRED_ATTESTATION_STAKE();
+
+      await janka
+        .connect(alice)
+        .attest(50, MOCK_CID, Date.now(), { value: requiredStake });
+
+      const attestation = await janka.attestations(alice.address);
+      await time.increaseTo(attestation.finalizationTime);
+      await janka.connect(alice).withdrawStake();
+
+      await expect(
+        janka
+          .connect(alice)
+          .attest(55, MOCK_CID, Date.now(), { value: requiredStake })
+      ).not.to.be.reverted;
+    });
+
     it("should enforce that the *exact* required stake is provided", async () => {
       const { janka, alice } = await loadFixture(setupFixture);
       const requiredStake = await janka.REQUIRED_ATTESTATION_STAKE();
