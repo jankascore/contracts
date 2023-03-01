@@ -136,6 +136,12 @@ contract JankaProtocol is Ownable {
         supportedAlgorithms[_algorithmCID] = true;
     }
 
+    /// Allows an administrator to add a trusted verifier node to the allowlist for `challenge()`.
+    /// @param _verifier The address of the verifier.
+    function allowVerifier(address _verifier) external onlyOwner {
+        allowlistedVerifiers[_verifier] = true;
+    }
+
     event ScoreAttested(
         address indexed attester,
         uint8 score,
