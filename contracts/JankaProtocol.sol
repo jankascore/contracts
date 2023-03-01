@@ -30,10 +30,12 @@ contract JankaProtocol is Ownable {
     /// Allows an EOA to attest to a score, subject to challenges for `CHALLENGE_WINDOW`.
     /// @param _score An integer score ranging from 0-100 inclusive.
     /// @param _algorithmCID An IPFS CID indicating the algorithm used.
+    /// @param _timestamp The Unix timestamp at which this score was generated.
     /// @return _finalizationTime The Unix timestamp at which the attestation is considered final (without challenge).
     function attest(
         uint8 _score,
-        string calldata _algorithmCID
+        string calldata _algorithmCID,
+        uint256 _timestamp
     ) external payable returns (uint256 _finalizationTime) {
         /// Revert straight away if we know the score is bogus.
         if (_score > 100) revert InvalidScore(0, 100, _score);
@@ -59,7 +61,7 @@ contract JankaProtocol is Ownable {
             finalizationTime: finalizationTime
         });
 
-        emit ScoreAttested(msg.sender, _score, _algorithmCID, finalizationTime);
+        emit ScoreAttested(msg.sender, _score, _algorithmCID, _timestamp);
         return finalizationTime;
     }
 
@@ -146,7 +148,7 @@ contract JankaProtocol is Ownable {
         address indexed attester,
         uint8 score,
         string algorithmCID,
-        uint256 finalizationTime
+        uint256 timestamp
     );
     event ScoreChallenged(
         address indexed attester,

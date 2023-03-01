@@ -34,7 +34,9 @@ describe("JankaProtocol", () => {
       const { janka, alice } = await loadFixture(setupFixture);
       const bogusScore = 101;
 
-      await expect(janka.connect(alice).attest(bogusScore, MOCK_CID))
+      await expect(
+        janka.connect(alice).attest(bogusScore, MOCK_CID, Date.now())
+      )
         .to.be.revertedWithCustomError(janka, "InvalidScore")
         .withArgs(0, 100, bogusScore);
     });
@@ -44,7 +46,7 @@ describe("JankaProtocol", () => {
       const bogusCID = "QmbWqxBEKC3P8tqsKc98xmWNzrzDtRLMiMPL8wBuTGsMnR";
 
       await expect(
-        janka.connect(alice).attest(50, bogusCID)
+        janka.connect(alice).attest(50, bogusCID, Date.now())
       ).to.be.revertedWithCustomError(janka, "InvalidAlgorithm");
     });
 
@@ -52,9 +54,13 @@ describe("JankaProtocol", () => {
       const { janka, alice } = await loadFixture(setupFixture);
       const requiredStake = await janka.REQUIRED_ATTESTATION_STAKE();
 
-      await janka.connect(alice).attest(50, MOCK_CID, { value: requiredStake });
+      await janka
+        .connect(alice)
+        .attest(50, MOCK_CID, Date.now(), { value: requiredStake });
       await expect(
-        janka.connect(alice).attest(50, MOCK_CID, { value: requiredStake })
+        janka
+          .connect(alice)
+          .attest(50, MOCK_CID, Date.now(), { value: requiredStake })
       ).to.be.revertedWithCustomError(janka, "AttestationAlreadyExists");
     });
 
@@ -63,7 +69,7 @@ describe("JankaProtocol", () => {
       const requiredStake = await janka.REQUIRED_ATTESTATION_STAKE();
 
       // Try first without providing any ether.
-      await expect(janka.connect(alice).attest(0, MOCK_CID))
+      await expect(janka.connect(alice).attest(0, MOCK_CID, Date.now()))
         .to.be.revertedWithCustomError(janka, "IncorrectStakeAmount")
         .withArgs(requiredStake, 0);
 
@@ -71,14 +77,16 @@ describe("JankaProtocol", () => {
       await expect(
         janka
           .connect(alice)
-          .attest(0, MOCK_CID, { value: requiredStake.add(1) })
+          .attest(0, MOCK_CID, Date.now(), { value: requiredStake.add(1) })
       )
         .to.be.revertedWithCustomError(janka, "IncorrectStakeAmount")
         .withArgs(requiredStake, requiredStake.add(1));
 
       // Finally, try with the exact amount.
       await expect(
-        janka.connect(alice).attest(0, MOCK_CID, { value: requiredStake })
+        janka
+          .connect(alice)
+          .attest(0, MOCK_CID, Date.now(), { value: requiredStake })
       ).to.not.be.reverted;
     });
 
@@ -88,7 +96,9 @@ describe("JankaProtocol", () => {
       const requiredStake = await janka.REQUIRED_ATTESTATION_STAKE();
 
       await expect(
-        janka.connect(alice).attest(score, MOCK_CID, { value: requiredStake })
+        janka
+          .connect(alice)
+          .attest(score, MOCK_CID, Date.now(), { value: requiredStake })
       )
         .to.emit(janka, "ScoreAttested")
         .withArgs(alice.address, score, MOCK_CID, anyValue);
@@ -114,7 +124,7 @@ describe("JankaProtocol", () => {
 
       await janka
         .connect(alice)
-        .attest(100, MOCK_CID, { value: requiredStake });
+        .attest(100, MOCK_CID, Date.now(), { value: requiredStake });
 
       // Challenge is made having used a different scoring algorithm.
       await expect(
@@ -128,7 +138,9 @@ describe("JankaProtocol", () => {
       const { janka, alice, verifier } = await loadFixture(setupFixture);
       const requiredStake = await janka.REQUIRED_ATTESTATION_STAKE();
 
-      await janka.connect(alice).attest(50, MOCK_CID, { value: requiredStake });
+      await janka
+        .connect(alice)
+        .attest(50, MOCK_CID, Date.now(), { value: requiredStake });
 
       // Challenge is made, but invalid (same score).
       await expect(
@@ -143,7 +155,7 @@ describe("JankaProtocol", () => {
       const requiredStake = await janka.REQUIRED_ATTESTATION_STAKE();
       await janka
         .connect(alice)
-        .attest(100, MOCK_CID, { value: requiredStake });
+        .attest(100, MOCK_CID, Date.now(), { value: requiredStake });
 
       await janka
         .connect(verifier)
@@ -159,7 +171,7 @@ describe("JankaProtocol", () => {
       const requiredStake = await janka.REQUIRED_ATTESTATION_STAKE();
       await janka
         .connect(alice)
-        .attest(100, MOCK_CID, { value: requiredStake });
+        .attest(100, MOCK_CID, Date.now(), { value: requiredStake });
 
       await expect(
         janka
@@ -175,7 +187,7 @@ describe("JankaProtocol", () => {
       const requiredStake = await janka.REQUIRED_ATTESTATION_STAKE();
       await janka
         .connect(alice)
-        .attest(100, MOCK_CID, { value: requiredStake });
+        .attest(100, MOCK_CID, Date.now(), { value: requiredStake });
 
       await expect(
         janka
@@ -201,7 +213,9 @@ describe("JankaProtocol", () => {
     it("should validate that the caller hasn't already withdrawn previously", async () => {
       const { janka, alice } = await loadFixture(setupFixture);
       const requiredStake = await janka.REQUIRED_ATTESTATION_STAKE();
-      await janka.connect(alice).attest(50, MOCK_CID, { value: requiredStake });
+      await janka
+        .connect(alice)
+        .attest(50, MOCK_CID, Date.now(), { value: requiredStake });
 
       const attestation = await janka.attestations(alice.address);
       await time.increaseTo(attestation.finalizationTime);
@@ -218,7 +232,9 @@ describe("JankaProtocol", () => {
     it("should ensure that the challenge window has closed", async () => {
       const { janka, alice } = await loadFixture(setupFixture);
       const requiredStake = await janka.REQUIRED_ATTESTATION_STAKE();
-      await janka.connect(alice).attest(50, MOCK_CID, { value: requiredStake });
+      await janka
+        .connect(alice)
+        .attest(50, MOCK_CID, Date.now(), { value: requiredStake });
 
       // An attestation has been made, but no time has passed.
       await expect(
@@ -229,7 +245,9 @@ describe("JankaProtocol", () => {
     it("should refund the exact attestation stake given a valid withdraw", async () => {
       const { janka, alice } = await loadFixture(setupFixture);
       const requiredStake = await janka.REQUIRED_ATTESTATION_STAKE();
-      await janka.connect(alice).attest(50, MOCK_CID, { value: requiredStake });
+      await janka
+        .connect(alice)
+        .attest(50, MOCK_CID, Date.now(), { value: requiredStake });
 
       const attestation = await janka.attestations(alice.address);
       // Simulate the passage of time.
@@ -248,7 +266,9 @@ describe("JankaProtocol", () => {
     it("should emit a StakeWithdrawn event", async () => {
       const { janka, alice } = await loadFixture(setupFixture);
       const requiredStake = await janka.REQUIRED_ATTESTATION_STAKE();
-      await janka.connect(alice).attest(50, MOCK_CID, { value: requiredStake });
+      await janka
+        .connect(alice)
+        .attest(50, MOCK_CID, Date.now(), { value: requiredStake });
 
       const attestation = await janka.attestations(alice.address);
       await time.increaseTo(attestation.finalizationTime);
