@@ -64,6 +64,25 @@ describe("JankaProtocol", () => {
       ).to.be.revertedWithCustomError(janka, "AttestationOustanding");
     });
 
+    it("should allow an additional attestation if no unclaimed stake is outstanding", async () => {
+      const { janka, alice } = await loadFixture(setupFixture);
+      const requiredStake = await janka.REQUIRED_ATTESTATION_STAKE();
+
+      await janka
+        .connect(alice)
+        .attest(50, MOCK_CID, Date.now(), { value: requiredStake });
+
+      const attestation = await janka.attestations(alice.address);
+      await time.increaseTo(attestation.finalizationTime);
+      await janka.connect(alice).withdrawStake();
+
+      await expect(
+        janka
+          .connect(alice)
+          .attest(55, MOCK_CID, Date.now(), { value: requiredStake })
+      ).not.to.be.reverted;
+    });
+
     it("should enforce that the *exact* required stake is provided", async () => {
       const { janka, alice } = await loadFixture(setupFixture);
       const requiredStake = await janka.REQUIRED_ATTESTATION_STAKE();
@@ -115,6 +134,24 @@ describe("JankaProtocol", () => {
           .connect(verifier)
           .challenge(alice.address, 50, MOCK_CID, verifier.address)
       ).to.be.revertedWithCustomError(janka, "InvalidAttestationChallenge");
+    });
+
+    it("should not allow an attestation whose stake has been withdrawn to be challenged", async () => {
+      const { janka, alice, verifier } = await loadFixture(setupFixture);
+      const requiredStake = await janka.REQUIRED_ATTESTATION_STAKE();
+      await janka
+        .connect(alice)
+        .attest(100, MOCK_CID, Date.now(), { value: requiredStake });
+
+      const attestation = await janka.attestations(alice.address);
+      await time.increaseTo(attestation.finalizationTime);
+      await janka.connect(alice).withdrawStake();
+
+      await expect(
+        janka
+          .connect(verifier)
+          .challenge(alice.address, 69, MOCK_CID, verifier.address)
+      ).to.be.revertedWithCustomError(janka, "ChallengeDenied");
     });
 
     it("should ensure that the attestation was checked using the same scoring algorithm", async () => {
@@ -292,6 +329,23 @@ describe("JankaProtocol", () => {
 
       await expect(
         janka.connect(alice).allowAlgorithmCID(MOCK_CID)
+      ).to.be.revertedWith("Ownable: caller is not the owner");
+    });
+  });
+
+  describe("when calling allowVerifier()", () => {
+    it("should add the verifier to the allowlist", async () => {
+      const { janka, deployer, verifier } = await loadFixture(setupFixture);
+
+      await janka.connect(deployer).allowVerifier(verifier.address);
+      expect(await janka.allowlistedVerifiers(verifier.address)).to.be.true;
+    });
+
+    it("should only allow the contract owner to call it", async () => {
+      const { janka, verifier, alice } = await loadFixture(setupFixture);
+
+      await expect(
+        janka.connect(alice).allowVerifier(verifier.address)
       ).to.be.revertedWith("Ownable: caller is not the owner");
     });
   });
