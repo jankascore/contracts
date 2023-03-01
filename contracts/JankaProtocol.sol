@@ -149,7 +149,7 @@ contract JankaProtocol is Ownable {
     }
 
     event ScoreAttested(
-        address indexed attester,
+        address attester,
         uint8 score,
         string algorithmCID,
         uint256 timestamp
