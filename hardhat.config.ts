@@ -17,6 +17,10 @@ const config: HardhatUserConfig = {
     },
   },
   networks: {
+    base: {
+      url: "https://goerli.base.org",
+      accounts: process.env.PRIVATE_KEY !== undefined ? [process.env.PRIVATE_KEY] : [],
+    },
     goerli: {
       url: process.env.GOERLI_URL || "",
       accounts:
@@ -34,6 +38,16 @@ const config: HardhatUserConfig = {
   },
   etherscan: {
     apiKey: process.env.ETHERSCAN_API_KEY,
+    customChains: [
+      {
+        network: 'base',
+        chainId: 84531,
+        urls: {
+          apiURL: "https://api-goerli.basescan.org/api",
+          browserURL: "https://goerli.basescan.org"
+        }
+      }
+    ]
   },
 };
 

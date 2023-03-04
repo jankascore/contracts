@@ -5,7 +5,7 @@ async function main() {
 
   const JankaProtocol = await ethers.getContractFactory("JankaProtocol");
   const janka = await JankaProtocol.deploy();
-  await janka.deployed();
+  const tx = await janka.deployed();
 
   console.log(`Deployer (owner): ${deployer.address}`);
   console.log(`Contract address: ${janka.address}`);
