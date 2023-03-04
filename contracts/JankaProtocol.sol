@@ -11,10 +11,10 @@ contract JankaProtocol is Ownable {
     uint256 public constant REQUIRED_ATTESTATION_STAKE = 0.01 ether;
 
     struct Attestation {
-        uint8 score;
         bool isStakeClaimed;
+        uint8 score;
+        uint40 finalizationTime;
         string algorithmCID;
-        uint256 finalizationTime;
     }
 
     mapping (address => Attestation) public attestations;
@@ -36,7 +36,7 @@ contract JankaProtocol is Ownable {
         uint8 _score,
         string calldata _algorithmCID,
         uint256 _timestamp
-    ) external payable returns (uint256 _finalizationTime) {
+    ) external payable returns (uint40 _finalizationTime) {
         /// Revert straight away if we know the score is bogus.
         if (_score > 100) revert InvalidScore(0, 100, _score);
 
@@ -54,7 +54,7 @@ contract JankaProtocol is Ownable {
         if (msg.value != REQUIRED_ATTESTATION_STAKE)
             revert IncorrectStakeAmount(REQUIRED_ATTESTATION_STAKE, msg.value);
 
-        uint256 finalizationTime = block.timestamp + CHALLENGE_WINDOW;
+        uint40 finalizationTime = uint40(block.timestamp + CHALLENGE_WINDOW);
         attestations[msg.sender] = Attestation({
             score: _score,
             isStakeClaimed: false,
@@ -116,7 +116,7 @@ contract JankaProtocol is Ownable {
 
     /// Allows an EOA to reclaim staked Ether after `CHALLENGE_WINDOW` has passed.
     function withdrawStake() external {
-        Attestation storage attestation = attestations[msg.sender];
+        Attestation memory attestation = attestations[msg.sender];
 
         /// Ensure the caller has an existing attestation.
         /// @dev Using `finalizationTime` as a sentinel value.
@@ -129,7 +129,7 @@ contract JankaProtocol is Ownable {
         if (block.timestamp < attestation.finalizationTime)
             revert WithdrawNotReady(attestation.finalizationTime - block.timestamp);
 
-        attestation.isStakeClaimed = true;
+        attestations[msg.sender].isStakeClaimed = true;
         emit StakeWithdrawn(msg.sender, REQUIRED_ATTESTATION_STAKE);
 
         (bool isSuccess,) = payable(msg.sender).call{value: REQUIRED_ATTESTATION_STAKE}("");
