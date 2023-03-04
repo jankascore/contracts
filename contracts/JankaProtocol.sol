@@ -4,16 +4,27 @@ pragma solidity 0.8.19;
 import "@openzeppelin/contracts/access/Ownable.sol";
 
 contract JankaProtocol is Ownable {
-    /// A duration of time during which an attested score is able to be challenged.
+    /// The *minimum* duration of time during which an attested score may be challenged.
+    /// @dev A static value is used here for simplicity, but a future version will make this dynamic.
     uint256 public constant CHALLENGE_WINDOW = 2 hours;
 
     /// An amount of at-risk Ether provided with a score attestation to thwart bad actors.
+    /// @dev A static value is used here for simplicity, but a future version will make this dynamic.
     uint256 public constant REQUIRED_ATTESTATION_STAKE = 0.01 ether;
 
     struct Attestation {
+        /// Has the user withdrawn their at-risk Ether?
         bool isStakeClaimed;
+
+        /// The attester's Janka score, from an allowlisted scoring algorithm.
+        /// @dev Range: 0-100 inclusive (integer).
         uint8 score;
+
+        /// The time at which at-risk Ether is able to be withdrawn absent a challenge.
+        /// @dev Using uint40 for gas savings (while keeping sufficient precision and future-proofing).
         uint40 finalizationTime;
+
+        /// The scoring algorithm used (IPFS CID). Must be allowlisted.
         string algorithmCID;
     }
 
@@ -27,11 +38,11 @@ contract JankaProtocol is Ownable {
     /// @dev Using a mapping (vs array) for O(1) lookup.
     mapping (address => bool) public allowlistedVerifiers;
 
-    /// Allows an EOA to attest to a score, subject to challenges for `CHALLENGE_WINDOW`.
+    /// Allows an EOA to attest to a Janka score, subject to a verification challenge for `CHALLENGE_WINDOW`.
     /// @param _score An integer score ranging from 0-100 inclusive.
     /// @param _algorithmCID An IPFS CID indicating the algorithm used.
-    /// @param _timestamp The Unix timestamp at which this score was generated.
-    /// @return _finalizationTime The Unix timestamp at which the attestation is considered final (without challenge).
+    /// @param _timestamp Unix timestamp at which this score was generated, for point-in-time verification.
+    /// @return _finalizationTime Unix timestamp at which at-risk ether is able to be withdrawn.
     function attest(
         uint8 _score,
         string calldata _algorithmCID,
@@ -69,7 +80,7 @@ contract JankaProtocol is Ownable {
     /// Allows an attestation to be challenged by a trusted verifier.
     /// @param _attester The EOA that submitted the original score attestation.
     /// @param _score The score that the challenger computed.
-    /// @param _algorithmCID The scoring algorithm (IPFS CID) used for the new score.
+    /// @param _algorithmCID The scoring algorithm (IPFS CID) used for the challenge.
     /// @param _rewardRecipient An address to receive the challenge incentive.
     function challenge(
         address _attester,
@@ -87,10 +98,10 @@ contract JankaProtocol is Ownable {
         if (attestation.finalizationTime == 0)
             revert InvalidAttestationChallenge();
 
-        /// If the attester has already withdrawn their stake, it can no longer be challenged.
+        /// An attestation can no longer be challenged after the at-risk ether has been withdrawn.
         if (attestation.isStakeClaimed) revert ChallengeDenied();
 
-        /// Ensure that the scoring used the same algorithm as the attestation.
+        /// Ensure that verification was performed using the same scoring algorithm version.
         if (keccak256(abi.encodePacked(attestation.algorithmCID))
             != keccak256(abi.encodePacked(_algorithmCID))) {
                 revert InvalidAttestationChallenge();
@@ -99,7 +110,7 @@ contract JankaProtocol is Ownable {
         /// Ensure that the challenger actually came up with a different score.
         if (attestation.score == _score) revert InvalidAttestationChallenge();
 
-        /// If we've reached this point, render the attestation invalid.
+        /// Render the original attestation invalid.
         delete attestations[_attester];
         emit ScoreChallenged(
             _attester,
@@ -109,12 +120,13 @@ contract JankaProtocol is Ownable {
             _algorithmCID
         );
 
-        /// Pay the challenger an incentive for combatting fraud!
+        /// The fraudulent attestor forfeits their at-risk ether, having been successfully challenged.
         (bool isSuccess,) = payable(_rewardRecipient).call{value: REQUIRED_ATTESTATION_STAKE}("");
         require(isSuccess, "Incentive payment failed!");
     }
 
     /// Allows an EOA to reclaim staked Ether after `CHALLENGE_WINDOW` has passed.
+    /// @dev `msg.sender` is used for simplicity, but future versions may allow a `to` withdraw address.
     function withdrawStake() external {
         Attestation memory attestation = attestations[msg.sender];
 
@@ -149,6 +161,7 @@ contract JankaProtocol is Ownable {
     }
 
     event ScoreAttested(
+        /// @dev Explicitly not indexed for now to allow for easier watching/consumption.
         address attester,
         uint8 score,
         string algorithmCID,
