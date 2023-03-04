@@ -14,7 +14,7 @@ const goerli = new ethers.providers.AlchemyProvider('goerli', process.env.ALCHEM
 const goerliWallet = new ethers.Wallet(process.env.PRIVATE_KEY!, goerli)
 const goerliJanka = new ethers.Contract(goerliAddress, jankaJson.abi, goerliWallet) as JankaProtocol & Contract
 
-const cid = 'QmT9wT4wSuTZfKcgwPo9DqiRNsqqZ44dctaZXWuLcELvh4';
+const cid = 'QmRNYZMjkZmwh2fYYLWHCM4AwaMqsFCYSGeokXtxcEnSWJ';
 
 const setCid = async (cid: string) => {
 	try {
